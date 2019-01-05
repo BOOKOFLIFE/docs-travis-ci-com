@@ -12,7 +12,7 @@ The following example runs `scripts/deploy.sh` on the `develop` branch of your r
 ```yaml
 deploy:
   provider: script
-  script: scripts/deploy.sh
+  script: bash scripts/deploy.sh
   on:
     branch: develop
 ```
@@ -31,23 +31,23 @@ It is possible to pass arguments to a script deployment.
 deploy:
   # deploy develop to the staging environment
   - provider: script
-    script: scripts/deploy.sh staging
+    script: bash scripts/deploy.sh staging
     on:
       branch: develop
   # deploy master to production
   - provider: script
-    script: scripts/deploy.sh production
+    script: bash scripts/deploy.sh production
     on:
       branch: master
 ```
 {: data-file=".travis.yml"}
 
-The script has access to all the usual [environment variables](/user/environment-variables/#Default-Environment-Variables).
+The script has access to all the usual [environment variables](/user/environment-variables/#default-environment-variables).
 
 ```yaml
 deploy:
   provider: script
-  script: scripts/deploy.sh production $TRAVIS_TAG
+  script: bash scripts/deploy.sh production $TRAVIS_TAG
   on:
     tags: true
     all_branches: true

@@ -8,7 +8,7 @@ redirect_from:
 
 This guide covers setting up the most popular databases and other services in the Travis CI environment.
 
-<div id="toc"></div>
+
 
 All services use default settings, with the exception of some added users and relaxed security settings.
 
@@ -35,8 +35,7 @@ services:
 ```
 {: data-file=".travis.yml"}
 
-> Note that this feature only works for services we provision in our [CI environment](/user/reference/precise/). If you download Apache Jackrabbit
-> you still have to start it in a `before_install` step.
+> If you download and install a service manually, you also have to start it in a `before_install` step. The `services` key only works for services we provision.
 
 ## MySQL
 
@@ -55,6 +54,13 @@ and a blank password.
 > Note that the `travis` user does not have the heightened privileges that the
 > `root` user does.
 
+
+|       | Ubuntu Precise | Ubuntu Trusty | Ubuntu Xenial |
+|:------|:---------------|:--------------|:--------------|
+| MySQL | 5.5.x          | 5.6.x         | 5.7.x         |
+
+You can also [install MySQL 5.7](#mysql-57) on Ubuntu Trusty.
+
 ### Using MySQL with ActiveRecord
 
 `config/database.yml` example for Ruby projects using ActiveRecord:
@@ -66,7 +72,7 @@ test:
   username: travis
   encoding: utf8
 ```
-{: data-file=".travis.yml"}
+{: data-file="config/database.yml"}
 
 You might have to create the `myapp_test` database first, for example in
 the `before_install` step in `.travis.yml`:
@@ -93,10 +99,33 @@ before_install:
 ```
 {: data-file=".travis.yml"}
 
-### MySQL 5.6
 
-The recommended way to get MySQL 5.6 is switching to our [Trusty CI
-Environment](/user/reference/trusty/).
+### MySQL 5.7
+
+MySQL 5.7 is the default on the Xenial image. 
+On Trusty, you can install MySQL 5.7 by adding the following lines to your `.travis.yml`:
+
+
+```yaml
+addons:
+  apt:
+    sources:
+      - mysql-5.7-trusty
+    packages:
+      - mysql-server
+      - mysql-client
+```
+{: data-file=".travis.yml"}
+
+You'll also need to reset the root password to something other than `new_password`:
+
+```yaml
+before_install:
+  - sudo mysql -e "use mysql; update user set authentication_string=PASSWORD('new_password') where User='root'; update user set plugin='mysql_native_password';FLUSH PRIVILEGES;"
+  - sudo mysql_upgrade -u root -pnew_password
+  - sudo service mysql restart
+```
+{: data-file=".travis.yml"}
 
 ## PostgreSQL
 
@@ -139,7 +168,10 @@ before_script:
 
 ### Using a different PostgreSQL Version
 
-The Travis CI build environments use version 9.1 by default, but other versions from the official [PostgreSQL APT repository](http://apt.postgresql.org) are also available. To use a version other than the default, specify only the **major.minor** version in your `.travis.yml`:
+The Travis CI build environments use version 9.2 by default on Trusty images, but other versions
+from the official [PostgreSQL APT repository](http://apt.postgresql.org) are
+also available. To use a version other than the default, specify only the
+**major.minor** version in your `.travis.yml`:
 
 ```yaml
 addons:
@@ -147,34 +179,33 @@ addons:
 ```
 {: data-file=".travis.yml"}
 
-The following versions are available on Linux builds:
+Many PostgreSQL versions have been preinstalled in our build environments, and
+others may be added and activated at build time by using a combination of the
+`postgresql` and `apt` addons along with a global env var override for `PGPORT`:
 
-| PostgreSQL | sudo enabled precise | sudo enabled trusty | container precise | container trusty |
-|:----------:|:--------------------:|:-------------------:|:-----------------:|:----------------:|
-|    9.1     |         yes          |                     |        yes        |                  |
-|    9.2     |         yes          |         yes         |        yes        |       yes        |
-|    9.3     |         yes          |         yes         |        yes        |       yes        |
-|    9.4     |         yes          |         yes         |        yes        |       yes        |
-|    9.5     |         yes          |         yes         |                   |       yes        |
-|    9.6     |                      |         yes         |                   |       yes        |
-
-On OS X, the following versions are installed:
-
-|     image     | version |
-|:-------------:|:-------:|
-|    xcode61    |   9.3   |
-| beta-xcode6.1 |   9.3   |
-|   xcode6.4    |   9.4   |
-|   xcode7.3    |   9.5   |
-|    xcode8     |   9.5   |
+``` yaml
+addons:
+  postgresql: "10"
+  apt:
+    packages:
+    - postgresql-10
+    - postgresql-client-10
+env:
+  global:
+  - PGPORT=5433
+```
+{: data-file=".travis.yml"}
 
 ### Using PostGIS
 
-All installed versions of PostgreSQL include PostGIS.
-
-You need to activate the extension in your `.travis.yml`:
+Install the version of PostGIS that matches your PostgreSQL version, and activate the PostGIS extension using:
 
 ```yaml
+addons:
+  postgresql: 9.6
+  apt:
+    packages:
+    - postgresql-9.6-postgis-2.3
 before_script:
   - psql -U postgres -c "create extension postgis"
 ```
@@ -186,7 +217,7 @@ The Travis CI build environment comes with a number of pre-installed locales, bu
 
 #### Installing Locales
 
-The following example shows the lines you need to add to your `.travis.yml` to install the Spanish language pack. The `sudo` command is not available on [container based infrastructure](/user/workers/container-based-infrastructure) so you currently cannot install locales on it.
+The following example shows the lines you need to add to your `.travis.yml` to install the Spanish language pack.
 
 > Note that you need to remove the PostgreSQL version from the `addons` section of your .travis.yml:
 
@@ -198,6 +229,24 @@ before_install:
   - sudo /etc/init.d/postgresql start 9.3
 ```
 {: data-file=".travis.yml"}
+
+### Using `pg_config`
+
+If your builds rely on the `pg_config` command, you need to install an additional
+apt package `postgresql-server-dev-X.Y`, where `X.Y` matches the version of PostgreSQL
+you are using.
+
+For example:
+
+```yaml
+addons:
+  postgresql: '9.4'
+  apt:
+    packages:
+      - postgresql-server-dev-9.4
+```
+
+See [this GitHub issue](https://github.com/travis-ci/travis-ci/issues/9011) for additional details.
 
 ## MariaDB
 
@@ -238,7 +287,7 @@ test:
   database: ":memory:"
   timeout: 500
 ```
-{: data-file=".travis.yml"}
+{: data-file="config/database.yml"}
 
 Or if you're not using a `config/database.yml`, connect to the database manually:
 
@@ -307,7 +356,7 @@ before_script:
 
 ## RabbitMQ
 
-RabbitMQ requires `setuid` flags, so you can only run RabbitMQ on standard, OS X or Trusty infrastructure (ie, your `.travis.yml` must contain `sudo: required`).
+RabbitMQ requires `setuid` flags, so you can only run RabbitMQ on OS X or Ubuntu Trusty infrastructure.
 
 Start RabbitMQ in your `.travis.yml`:
 
@@ -365,12 +414,9 @@ Redis uses the default configuration and is available on localhost.
 
 ## Cassandra
 
-Due to its high memory footprint, Cassandra isn't supported in our container-based infrastructure.
 Start Cassandra in your `.travis.yml`:
 
 ```yaml
-sudo: required
-
 services:
   - cassandra
 ```
@@ -436,7 +482,7 @@ before_install:
 
 We advise verifying the validity of the download URL [on ElasticSearch's website](https://www.elastic.co/downloads/elasticsearch).
 
-> `sudo` is not available on [Container-based infrastructure](/user/reference/overview/#Virtualization-environments).
+> `sudo` is not available on [Container-based infrastructure](/user/reference/overview/#virtualization-environments).
 
 ### Installing ElasticSearch on trusty container-based infrastructure
 
@@ -500,7 +546,7 @@ Use the `DB` environment variable to specify the name of the database configurat
 DB=postgres [commands to run your tests]
 ```
 
-On Travis CI you want to create a [build matrix](/user/customizing-the-build/#Build-Matrix) of three builds each having the `DB` variable exported with a different value, and for that you can use the `env` option in `.travis.yml`:
+On Travis CI you want to create a [build matrix](/user/customizing-the-build/#build-matrix) of three builds each having the `DB` variable exported with a different value, and for that you can use the `env` option in `.travis.yml`:
 
 ```yaml
 env:
